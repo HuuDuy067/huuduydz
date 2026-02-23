@@ -1,0 +1,73 @@
+-- [[ SAFE BOOT AUTO.EXE: CHỐNG TREO TUYỆT ĐỐI ]] --
+if not game:IsLoaded() then
+    local notLoadedTime = tick()
+    repeat task.wait() 
+    until game:IsLoaded() or (tick() - notLoadedTime > 10) -- Chỉ đợi tối đa 10s để game load
+end
+
+local Players = game:GetService("Players")
+local lplr = Players.LocalPlayer or Players.PlayerAdded:Wait()
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local VirtualUser = game:GetService("VirtualUser")
+
+-- 1. CHỐNG AFK NGAY LẬP TỨC (Để treo không bị kick)
+lplr.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new())
+end)
+
+-- 2. HÀM XÓA LOADING & VÀO GAME (CHẠY NGẦM)
+task.spawn(function()
+    local attempts = 0
+    while attempts < 20 do -- Thử liên tục trong 10 giây
+        attempts = attempts + 1
+        -- B. Spam Lệnh Vào Game (EnterTheGame)
+        if ReplicatedStorage:FindFirstChild("Chest") then
+             pcall(function()
+                ReplicatedStorage.Chest.Remotes.Functions.EtcFunction:InvokeServer("EnterTheGame", {})
+             end)
+        end
+        
+        -- C. Chọn Map Hard luôn cho đỡ hỏi
+        if ReplicatedStorage:FindFirstChild("ChooseMapRemote") then
+             ReplicatedStorage.ChooseMapRemote:FireServer("Hard")
+        end
+
+        task.wait(0.5)
+    end
+end)
+
+-- 3. CHECK DỮ LIỆU "MỀM" (KHÔNG TREO)
+print("⏳ Đang kiểm tra dữ liệu...")
+local waitTime = 0
+repeat
+    task.wait(0.5)
+    waitTime = waitTime + 0.5
+    
+    -- Điều kiện thoát sớm:
+    -- 1. Thấy Level > 0 (Nghĩa là data đã về)
+    -- 2. Hoặc thấy Beli (Tiền) xuất hiện
+    -- 3. Hoặc đã đợi quá 15 giây (Timeout)
+    
+    local stats = lplr:FindFirstChild("PlayerStats")
+    local ready = false
+    
+    if stats then
+        if stats:FindFirstChild("lvl") and stats.lvl.Value > 0 then ready = true end
+        if stats:FindFirstChild("beli") then ready = true end
+    end
+    
+    if ready then 
+        print("✅ Dữ liệu đã nhận diện xong!")
+        break 
+    end
+    
+    if waitTime > 15 then
+        warn("⚠️ Quá thời gian chờ (15s) -> Kích hoạt chế độ Cưỡng Ép Chạy!")
+        break -- Phá vỡ vòng lặp để chạy script luôn
+    end
+until false -- Vòng lặp này được kiểm soát bằng break ở trên
+
+print("Script KingHop bắt đầu hoạt động...")
+-- [[ KẾT THÚC ĐOẠN FIX ]] --
