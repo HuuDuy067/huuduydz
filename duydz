@@ -6,7 +6,7 @@ pcall(function()
     StarterGui:SetCore("SendNotification", {
         Title = "DuyHub System",
         Text = "Loading...",
-        Duration = 4
+        Duration = 3
     })
 end)
 
