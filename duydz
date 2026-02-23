@@ -4,8 +4,8 @@ getgenv().DuyHub_AllowedName = playerName
 local StarterGui = game:GetService("StarterGui")
 pcall(function()
     StarterGui:SetCore("SendNotification", {
-        Title = "👑 DuyHub System",
-        Text = "Đang kết nối tới máy chủ bảo mật...",
+        Title = "DuyHub System",
+        Text = "Loading...",
         Duration = 4
     })
 end)
