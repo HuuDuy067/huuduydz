@@ -1,0 +1,34 @@
+local player = game:GetService("Players").LocalPlayer
+local playerName = player.Name
+
+-- Thông báo giao diện
+local StarterGui = game:GetService("StarterGui")
+pcall(function()
+    StarterGui:SetCore("SendNotification", {
+        Title = "👑 DuyHub System",
+        Text = "Đang Loading...",
+        Duration = 4
+    })
+end)
+
+-- Thay tên miền Vercel của bạn vào đây (KHÔNG có dấu / ở cuối)
+local VERCEL_DOMAIN = "https://duyhub.vercel.app" 
+
+local api_link = VERCEL_DOMAIN .. "/api/ms-mother?account=" .. tostring(_G.account) .. "&name=" .. tostring(playerName)
+
+local success, response = pcall(function()
+    return game:HttpGet(api_link)
+end)
+
+if not success then
+    player:Kick("❌ DuyHub: Không thể kết nối đến máy chủ bảo mật. Vui lòng kiểm tra mạng!")
+    return
+end
+
+local loadedScript, err = loadstring(response)
+
+if loadedScript then
+    loadedScript()
+else
+    player:Kick("❌ DuyHub: Thuê thì vô discord.gg/877ncQcn (Liên hệ Admin)!")
+end
