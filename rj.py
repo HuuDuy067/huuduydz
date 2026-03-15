@@ -10,6 +10,7 @@ import re
 # Chức năng: Đa luồng kiểm tra nhiều file rj_AccName.json
 # Tự động ném Script Lua vào thư mục Autoexec! (Bản Fix Ký Tự Ẩn)
 # Có hàng đợi Auto Boot chống nổ RAM khi mở nhiều app.
+# Tích hợp Dọn dẹp RAM (Kill All) ngay khi bắt đầu chạy.
 # =========================================================================
 
 CONFIG_FILE = "watchdog_config.json"
@@ -208,6 +209,31 @@ def start_watchdog():
         print("\n❌ Bạn chưa thêm Account nào! Bấm [A] để thêm trước.")
         time.sleep(2)
         return
+        
+    print("\n🧹 ĐANG DỌN DẸP RAM: Kill toàn bộ ứng dụng Roblox cũ để làm mới...")
+    # Quét vòng lặp để force-stop toàn bộ acc trước khi kích hoạt
+    for acc in CONFIG['accounts']:
+        pkg = clean_path(acc['pkg'])
+        name = clean_path(acc['name'])
+        
+        # Đóng App dọn RAM
+        os.system(f"su -c 'am force-stop {pkg} > /dev/null 2>&1'")
+        os.system(f"su -c 'killall -9 {pkg} > /dev/null 2>&1'")
+        
+        # Xóa file nhịp tim cũ để ép hệ thống nhận diện đây là Lần Chạy Đầu Tiên (First Boot)
+        base = clean_path(CONFIG.get("base_path", "/storage/emulated/0/Delta"))
+        ws_dir = base + "/workspace"
+        if not os.path.exists(ws_dir) and os.path.exists(base + "/Workspace"):
+            ws_dir = base + "/Workspace"
+        ws_file = ws_dir + f"/rj_{name}.json"
+        
+        try:
+            if os.path.exists(ws_file):
+                os.remove(ws_file)
+        except:
+            pass
+            
+    time.sleep(2)
         
     WATCHING = True
     status_dict.clear()
