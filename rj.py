@@ -115,14 +115,14 @@ def main():
     while True:
         clear_screen()
         print("=========================================")
-        print(" 🤖 HUDY HUB - MENU MULTI-ACCOUNT")
+        print(" 🤖 HUDY HUB - MENU MULTI-ACCOUNT (CLONE ANYA)")
         print("=========================================")
         print("Chọn Bản Roblox bạn muốn bảo vệ cho Tab này:")
-        print("[1] Roblox Gốc   (com.roblox.client)  -> Đọc file: rj_1.json")
-        print("[2] Roblox VNG   (com.vng.roblox)     -> Đọc file: rj_2.json")
-        print("[3] Roblox Clone (com.roblox.client2) -> Đọc file: rj_3.json")
+        print("[1] Clone 1 (cakm.lxb.uhah) -> Đọc file: rj_1.json")
+        print("[2] Clone 2 (aiu.eyz.stto)  -> Đọc file: rj_2.json")
+        print("[3] Clone 3 (ho.xag.rwid)   -> Đọc file: rj_3.json")
         print("[4] Tự nhập thông tin THỦ CÔNG (Dành cho bản Clone lạ)")
-        print("[5] 🔎 TÌM TÊN GÓI (PACKAGE NAME) THẬT SỰ TRÊN MÁY NÀY")
+        print("[5] 🔎 TÌM TÊN GÓI (PACKAGE NAME) THẬT SỰ TRÊN MÁY")
         print("=========================================")
         
         choice = input("👉 Nhập số (1-5): ")
@@ -131,13 +131,13 @@ def main():
             find_roblox_packages()
             continue
         elif choice == "1":
-            pkg = "com.roblox.client"
+            pkg = "cakm.lxb.uhah"
             ws = BASE_WORKSPACE + "rj_1.json"
         elif choice == "2":
-            pkg = "com.vng.roblox"
+            pkg = "aiu.eyz.stto"
             ws = BASE_WORKSPACE + "rj_2.json"
         elif choice == "3":
-            pkg = "com.roblox.client2"
+            pkg = "ho.xag.rwid"
             ws = BASE_WORKSPACE + "rj_3.json"
         elif choice == "4":
             print("\n-- HƯỚNG DẪN: Dùng Menu [5] để tìm Tên gói, sau đó copy dán vào đây --")
