@@ -81,7 +81,6 @@ end)
 # =====================================================================
 def clean_path(path_str):
     if not path_str: return ""
-    # Xoá tất cả các ký tự điều khiển tàng hình ( \r, \n, \t... )
     return re.sub(r'[\x00-\x1F\x7F]', '', str(path_str)).strip()
 
 def load_config():
@@ -94,7 +93,6 @@ def load_config():
 
 def save_config():
     try:
-        # Lọc sạch rác trước khi lưu vào config
         CONFIG["base_path"] = clean_path(CONFIG.get("base_path", ""))
         CONFIG["place_id"] = clean_path(CONFIG.get("place_id", ""))
         for acc in CONFIG["accounts"]:
@@ -108,7 +106,6 @@ def save_config():
 def install_lua():
     base = clean_path(CONFIG.get("base_path", "/storage/emulated/0/Delta"))
     
-    # Ưu tiên tìm đúng thư mục đã có trên máy để khỏi tạo mới
     autoexec_dir = base + "/Autoexecute"
     if not os.path.exists(autoexec_dir):
         if os.path.exists(base + "/autoexec"): autoexec_dir = base + "/autoexec"
@@ -118,7 +115,6 @@ def install_lua():
     file_path = autoexec_dir + "/HuDy_MultiHeartbeat.lua"
     
     try:
-        # Ghi file với chuẩn newline Linux để dập tắt ký tự \r
         with open(file_path, "w", encoding="utf-8", newline='\n') as f:
             f.write(LUA_SCRIPT.replace('\r', ''))
         
@@ -146,7 +142,6 @@ def monitor_loop(acc):
             diff = 999
             is_first_boot = False
             
-            # Nếu không thấy file nhịp tim -> Kích hoạt Auto Start lần đầu
             if not os.path.exists(ws_file):
                 is_first_boot = True
             else:
@@ -155,7 +150,6 @@ def monitor_loop(acc):
                 diff = int(time.time()) - data.get('time', 0)
                 
             if diff > 60 or is_first_boot:
-                # Xếp hàng bằng boot_lock để các Acc khởi động cách nhau an toàn
                 with boot_lock:
                     if is_first_boot:
                         status_dict[name] = f"🚀 ĐANG MỞ APP LẦN ĐẦU..."
@@ -167,24 +161,39 @@ def monitor_loop(acc):
                     os.system(f"su -c 'killall -9 {pkg} > /dev/null 2>&1'")
                     time.sleep(2)
                     
-                    # Ép Join Game
+                    # ==================================================
+                    # FIX: COMBO MỞ APP 2 BƯỚC (CHỐNG LỖI KẸT Ở SẢNH)
+                    # ==================================================
                     pid = clean_path(CONFIG.get("place_id", "4520749081"))
-                    cmd = f"su -c 'am start -p {pkg} -a android.intent.action.VIEW -d \"roblox://experiences/start?placeId={pid}\"'"
-                    os.system(cmd)
                     
-                    # Reset nhịp tim để không kill nhầm lúc đang load
+                    # Bước 1: Mở app ra màn hình sảnh chờ
+                    status_dict[name] = "🟡 Đang đánh thức App (B1)..."
+                    os.system(f"su -c 'monkey -p {pkg} -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1'")
+                    
+                    # Ngủ 8 giây để App load xong tài nguyên Home Screen
+                    time.sleep(8)
+                    
+                    # Bước 2: Bắn link ép Join
+                    status_dict[name] = "🟡 Đang ép Join Game (B2)..."
+                    cmd_join = f"su -c 'am start -a android.intent.action.VIEW -d \"roblox://placeId={pid}\" -p {pkg}'"
+                    os.system(cmd_join)
+                    
+                    # CẤP QUYỀN MIỄN TỬ (GRACE PERIOD): Cộng thêm 180s (3 phút) vào mốc thời gian.
                     with open(ws_file, "w") as f:
-                        json.dump({"time": int(time.time())}, f)
+                        json.dump({"time": int(time.time()) + 180}, f)
                         
-                    status_dict[name] = "🟡 Đang chờ game load..."
+                    status_dict[name] = "🟡 Đang chờ game load (Max 3 phút)..."
                     
-                    # Ngủ 10s trước khi thả khoá cho Acc tiếp theo được mở
+                    # Ngủ 10s trước khi thả khoá cho Acc tiếp theo được khởi động
                     time.sleep(10)
                 
-                # Luồng hiện tại ngủ thêm 35s cho game load vào xong hẳn
+                # Luồng hiện tại ngủ thêm 35s trước khi check vòng lặp mới
                 time.sleep(35)
             else:
-                status_dict[name] = f"🟢 ĐANG CHẠY ({diff}s trước)"
+                if diff < 0:
+                    status_dict[name] = f"🟢 ĐANG NẠP DỮ LIỆU GAME (Chờ Lua Script...)"
+                else:
+                    status_dict[name] = f"🟢 ĐANG CHẠY ({diff}s trước)"
                 
         except json.JSONDecodeError:
             pass # Đang ghi file
@@ -204,7 +213,6 @@ def start_watchdog():
     status_dict.clear()
     threads = []
     
-    # Bật đa luồng
     for acc in CONFIG['accounts']:
         t = threading.Thread(target=monitor_loop, args=(acc,))
         t.daemon = True
