@@ -163,7 +163,7 @@ def monitor_loop(acc):
                     time.sleep(2)
                     
                     # ==================================================
-                    # FIX: COMBO MỞ APP SIÊU TỐC (FAST BOOT)
+                    # FIX: COMBO MỞ APP SIÊU TỐC (CẬP NHẬT CHUẨN URL)
                     # ==================================================
                     pid = clean_path(CONFIG.get("place_id", "4520749081"))
                     
@@ -171,12 +171,12 @@ def monitor_loop(acc):
                     status_dict[name] = "🟡 Đang đánh thức App (B1)..."
                     os.system(f"su -c 'monkey -p {pkg} -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1'")
                     
-                    # Ngủ 3 giây (Rút ngắn tối đa để tăng tốc)
-                    time.sleep(3)
+                    # Ngủ 5 giây để App vừa đủ thời gian lên nguồn
+                    time.sleep(5)
                     
-                    # Bước 2: Bắn link ép Join
+                    # Bước 2: Bắn link ép Join chuẩn của Roblox (có experiences/start)
                     status_dict[name] = "🟡 Đang ép Join Game (B2)..."
-                    cmd_join = f"su -c 'am start -a android.intent.action.VIEW -d \"roblox://placeId={pid}\" -p {pkg}'"
+                    cmd_join = f"su -c 'am start -a android.intent.action.VIEW -d \"roblox://experiences/start?placeId={pid}\" -p {pkg}'"
                     os.system(cmd_join)
                     
                     # CẤP QUYỀN MIỄN TỬ (GRACE PERIOD): Cộng thêm 180s (3 phút) vào mốc thời gian.
@@ -185,10 +185,10 @@ def monitor_loop(acc):
                         
                     status_dict[name] = "🟡 Đang chờ game load (Max 3 phút)..."
                     
-                    # Ngủ 3s trước khi thả khoá cho Acc tiếp theo được khởi động (Rút ngắn từ 10s)
+                    # Ngủ 3s trước khi thả khoá cho Acc tiếp theo được khởi động
                     time.sleep(3)
                 
-                # Luồng hiện tại ngủ thêm 10s trước khi check vòng lặp mới (Rút ngắn từ 35s)
+                # Luồng hiện tại ngủ thêm 10s trước khi check vòng lặp mới
                 time.sleep(10)
             else:
                 if diff < 0:
