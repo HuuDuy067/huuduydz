@@ -3,11 +3,12 @@ import json
 import time
 import threading
 import subprocess
+import re
 
 # =========================================================================
 # HUDY HUB - BẢNG ĐIỀU KHIỂN TRUNG TÂM TREO NHIỀU ACC CÙNG LÚC
 # Chức năng: Đa luồng kiểm tra nhiều file rj_AccName.json
-# Tự động ném Script Lua vào thư mục Autoexec!
+# Tự động ném Script Lua vào thư mục Autoexec! (Bản Fix Ký Tự Ẩn)
 # =========================================================================
 
 CONFIG_FILE = "watchdog_config.json"
@@ -73,6 +74,14 @@ pcall(function()
 end)
 """
 
+# =====================================================================
+# HÀM LỌC SẠCH KÝ TỰ ẨN (CHỐNG LỖI ĐẺ THƯ MỤC RÁC CÓ Ô VUÔNG)
+# =====================================================================
+def clean_path(path_str):
+    if not path_str: return ""
+    # Xoá tất cả các ký tự điều khiển tàng hình ( \r, \n, \t... )
+    return re.sub(r'[\x00-\x1F\x7F]', '', str(path_str)).strip()
+
 def load_config():
     global CONFIG
     if os.path.exists(CONFIG_FILE):
@@ -83,40 +92,33 @@ def load_config():
 
 def save_config():
     try:
+        # Lọc sạch rác trước khi lưu vào config
+        CONFIG["base_path"] = clean_path(CONFIG.get("base_path", ""))
+        CONFIG["place_id"] = clean_path(CONFIG.get("place_id", ""))
+        for acc in CONFIG["accounts"]:
+            acc["name"] = clean_path(acc["name"])
+            acc["pkg"] = clean_path(acc["pkg"])
+            
         with open(CONFIG_FILE, "w") as f:
             json.dump(CONFIG, f)
     except: pass
 
-# =====================================================================
-# THUẬT TOÁN TÌM THƯ MỤC CHUẨN XÁC (KHÔNG TẠO RÁC)
-# =====================================================================
-def get_exact_folder(base_path, folder_names_to_try):
-    if not os.path.exists(base_path):
-        return os.path.join(base_path, folder_names_to_try[0])
-        
-    existing_dirs = os.listdir(base_path)
-    # Lấy danh sách thư mục hiện có (loại bỏ ký tự lạ, chuyển về chữ thường để so sánh)
-    clean_dirs = {d.lower().strip(): d for d in existing_dirs}
-    
-    for target in folder_names_to_try:
-        clean_target = target.lower().strip()
-        if clean_target in clean_dirs:
-            # Trả về tên thư mục GỐC CỦA HỆ THỐNG đang xài (Đúng 100% in hoa/thường)
-            return os.path.join(base_path, clean_dirs[clean_target])
-            
-    # Nếu không có thì mới tạo mới bằng cái tên chuẩn đầu tiên
-    return os.path.join(base_path, folder_names_to_try[0])
-
 def install_lua():
-    # Tìm chính xác thư mục Autoexecute đang có sẵn
-    autoexec_dir = get_exact_folder(CONFIG["base_path"], ["autoexecute", "autoexec"])
-    os.makedirs(autoexec_dir, exist_ok=True)
-
-    file_path = os.path.join(autoexec_dir, "HuDy_MultiHeartbeat.lua")
+    base = clean_path(CONFIG.get("base_path", "/storage/emulated/0/Delta"))
+    
+    # Ưu tiên tìm đúng thư mục đã có trên máy để khỏi tạo mới
+    autoexec_dir = base + "/Autoexecute"
+    if not os.path.exists(autoexec_dir):
+        if os.path.exists(base + "/autoexec"): autoexec_dir = base + "/autoexec"
+        elif os.path.exists(base + "/autoexecute"): autoexec_dir = base + "/autoexecute"
+        else: os.makedirs(autoexec_dir, exist_ok=True)
+        
+    file_path = autoexec_dir + "/HuDy_MultiHeartbeat.lua"
     
     try:
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(LUA_SCRIPT)
+        # Ghi file với chuẩn newline Linux để dập tắt ký tự \r
+        with open(file_path, "w", encoding="utf-8", newline='\n') as f:
+            f.write(LUA_SCRIPT.replace('\r', ''))
         
         print(f"\n✅ ĐÃ CÀI ĐẶT THÀNH CÔNG SCRIPT VÀO AUTOEXEC!")
         print(f"File được lưu chính xác tại: {file_path}")
@@ -126,14 +128,16 @@ def install_lua():
     time.sleep(4)
 
 def monitor_loop(acc):
-    name = acc['name']
-    pkg = acc['pkg']
+    name = clean_path(acc['name'])
+    pkg = clean_path(acc['pkg'])
+    base = clean_path(CONFIG.get("base_path", "/storage/emulated/0/Delta"))
     
-    # Tìm chính xác thư mục Workspace đang có sẵn
-    ws_dir = get_exact_folder(CONFIG["base_path"], ["workspace"])
-    os.makedirs(ws_dir, exist_ok=True)
-    
-    ws_file = os.path.join(ws_dir, f"rj_{name}.json")
+    ws_dir = base + "/workspace"
+    if not os.path.exists(ws_dir):
+        if os.path.exists(base + "/Workspace"): ws_dir = base + "/Workspace"
+        else: os.makedirs(ws_dir, exist_ok=True)
+        
+    ws_file = ws_dir + f"/rj_{name}.json"
     
     while WATCHING:
         try:
@@ -153,7 +157,7 @@ def monitor_loop(acc):
                     time.sleep(2)
                     
                     # Ép Join Game
-                    pid = CONFIG.get("place_id", "4520749081")
+                    pid = clean_path(CONFIG.get("place_id", "4520749081"))
                     cmd = f"su -c 'am start -p {pkg} -a android.intent.action.VIEW -d \"roblox://experiences/start?placeId={pid}\"'"
                     os.system(cmd)
                     
@@ -199,8 +203,8 @@ def start_watchdog():
             print(f" {'TÊN NHÂN VẬT':<15} | {'PACKAGE NAME (APP)':<20} | TRẠNG THÁI")
             print("----------------------------------------------------------------------")
             for acc in CONFIG['accounts']:
-                name = acc['name']
-                pkg = acc['pkg']
+                name = clean_path(acc['name'])
+                pkg = clean_path(acc['pkg'])
                 status = status_dict.get(name, "⚪ Đang khởi tạo...")
                 print(f" {name:<15} | {pkg:<20} | {status}")
             print("======================================================================")
@@ -233,7 +237,7 @@ def menu():
         print(" [Q] Thoát")
         print("=============================================================")
         
-        c = input("👉 Nhập lựa chọn: ").upper()
+        c = input("👉 Nhập lựa chọn: ").upper().strip()
         if c == 'A':
             print("\n-- LƯU Ý: Tên nhân vật (Name in game) phải gõ chính xác in hoa, in thường --")
             name = input("Nhập Tên Nhân Vật: ").strip()
@@ -249,9 +253,9 @@ def menu():
             except: pass
         elif c == 'S':
             path = input(f"\nNhập đường dẫn gốc Executor (Bỏ trống để giữ {CONFIG['base_path']}): ").strip()
-            if path: CONFIG['base_path'] = path
+            if path: CONFIG['base_path'] = clean_path(path)
             pid = input(f"Nhập PlaceID tự Join (Bỏ trống để giữ {CONFIG['place_id']}): ").strip()
-            if pid: CONFIG['place_id'] = pid
+            if pid: CONFIG['place_id'] = clean_path(pid)
             save_config()
         elif c == 'I':
             install_lua()
