@@ -172,7 +172,7 @@ def monitor_loop(acc):
                     os.system(f"su -c 'monkey -p {pkg} -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1'")
                     
                     # Ngủ 5 giây để App vừa đủ thời gian lên nguồn
-                    time.sleep(5)
+                    time.sleep(10)
                     
                     # Bước 2: Bắn link ép Join chuẩn của Roblox (có experiences/start)
                     status_dict[name] = "🟡 Đang ép Join Game (B2)..."
