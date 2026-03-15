@@ -1,165 +1,234 @@
 import os
 import json
 import time
+import threading
 import subprocess
 
 # =========================================================================
-# HUDY HUB - MULTI-ACCOUNT WATCHDOG (FIX FOR CLONED APPS)
-# Tính năng: Kiểm tra mỗi 60s, Kill App và Ép Join thẳng vào King Legacy
-# Thêm công cụ dò tìm Tên Gói (Package Name) cho các bản Clone ẩn danh.
+# HUDY HUB - BẢNG ĐIỀU KHIỂN TRUNG TÂM TREO NHIỀU ACC CÙNG LÚC
+# Chức năng: Đa luồng kiểm tra nhiều file rj_AccName.json
+# Tự động ném Script Lua vào thư mục Autoexec!
 # =========================================================================
 
-BASE_WORKSPACE = "/storage/emulated/0/Delta/workspace/"
-TIMEOUT_SECONDS = 60
-KING_LEGACY_PLACE_ID = "4520749081"
+CONFIG_FILE = "watchdog_config.json"
+CONFIG = {
+    "base_path": "/storage/emulated/0/Delta",
+    "place_id": "4520749081",
+    "accounts": [] # Danh sách dạng {"name": "Acc1", "pkg": "com.xxx"}
+}
 
-def clear_screen():
-    os.system('clear' if os.name == 'posix' else 'cls')
+WATCHING = False
+status_dict = {}
 
-def find_roblox_packages():
-    clear_screen()
-    print("=========================================")
-    print("🔍 ĐANG QUÉT CÁC BẢN ROBLOX TRÊN MÁY...")
-    print("=========================================")
-    try:
-        # Sử dụng subprocess.run thay vì check_output để không bị văng lỗi khi grep rỗng (exit status 1)
-        result1 = subprocess.run("su -c 'pm list packages | grep -i roblox'", shell=True, capture_output=True, text=True)
-        packages = result1.stdout.strip().split('\n') if result1.stdout else []
-        packages = [p for p in packages if p] # Xóa phần tử rỗng
-        
-        if not packages:
-            print("⚠️ Không tìm thấy tên có chữ 'roblox', đang tìm chữ 'delta' hoặc 'vng'...")
-            result2 = subprocess.run("su -c 'pm list packages | grep -iE \"delta|vng\"'", shell=True, capture_output=True, text=True)
-            packages = result2.stdout.strip().split('\n') if result2.stdout else []
-            packages = [p for p in packages if p]
-            
-        if not packages:
-            print("❌ Vẫn không tìm thấy! Bạn hãy tự vào Cài đặt -> Ứng dụng để xem tên gói.")
-        else:
-            print("✅ TÌM THẤY CÁC GÓI SAU ĐÂY (Hãy copy tên của bản Clone):")
-            for pkg in packages:
-                if pkg:
-                    print(f"   👉 {pkg.replace('package:', '').strip()}")
-    except Exception as e:
-        print(f"❌ Lỗi khi hệ thống quét: {e}")
-    
-    print("=========================================")
-    input("Bấm phím Enter để quay lại Menu chính...")
+# ĐÂY LÀ SCRIPT LUA TỰ ĐỘNG NHẬN DIỆN ACC SẼ ĐƯỢC BƠM VÀO AUTOEXEC
+LUA_SCRIPT = """if getgenv().HuDyHeartbeat_Running then return end
+getgenv().HuDyHeartbeat_Running = true
 
-def kill_and_start_roblox(package_name, workspace_path, place_id=None):
-    print(f"\n[!] PHÁT HIỆN [{package_name}] BỊ TREO/VĂNG! TIẾN HÀNH RESTART...")
-    
-    # 1. Force Stop Clone App cụ thể (Chém 2 nhát cho chắc)
-    print(f"[*] Đang đóng app: {package_name}...")
-    os.system(f"su -c 'am force-stop {package_name}'")
-    os.system(f"su -c 'killall -9 {package_name} > /dev/null 2>&1'") 
-    time.sleep(3)
-    
-    # 2. Mở lại App
-    if place_id:
-        print(f"[*] Đang ép mở thẳng vào Game (PlaceID: {place_id})...")
-        # Sử dụng -p thay vì -n để bypass lỗi Activity Class does not exist của bản Clone
-        intent_cmd = f"su -c 'am start -p {package_name} -a android.intent.action.VIEW -d \"roblox://experiences/start?placeId={place_id}\"'"
-        os.system(intent_cmd)
-    else:
-        print(f"[*] Đang mở lại app ra màn hình Home...")
-        os.system(f"su -c 'monkey -p {package_name} -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1'")
-    
-    print("[+] Hoàn tất! Chờ 45s để game load vào máy chủ...")
-    
-    # 3. Cập nhật lại nhịp tim giả để Python không bị lặp Kill trong lúc chờ game load
-    try:
-        with open(workspace_path, "w") as f:
-            json.dump({"time": int(time.time())}, f)
-    except:
-        pass
-        
-    time.sleep(45)
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local isGameDead = false
 
-def watch_heartbeat(package_name, workspace_path, place_id):
-    clear_screen()
-    print("=========================================")
-    print(f"🤖 HuDy Hub - Đang bảo vệ: {package_name}")
-    print(f"[*] Đọc nhịp tim tại : {workspace_path.split('/')[-1]}")
-    if place_id:
-        print(f"[*] Chế độ: AUTO JOIN KING LEGACY ({place_id})")
-    print("=========================================")
-    
-    while True:
+while not Players.LocalPlayer do task.wait(0.1) end
+local lplr = Players.LocalPlayer
+local HEARTBEAT_FILE = "rj_" .. tostring(lplr.Name) .. ".json" 
+
+print("💓 [HuDy Hub] Đã kích hoạt hệ thống Nhịp Tim Đa Tab: " .. HEARTBEAT_FILE)
+
+coroutine.wrap(function()
+    while task.wait(1) do 
+        if isGameDead then break end
+        pcall(function() if writefile then writefile(HEARTBEAT_FILE, '{"time":' .. math.floor(os.time()) .. '}') end end)
+    end
+end)()
+
+coroutine.wrap(function()
+    while task.wait(1) do
+        pcall(function()
+            local prompt = CoreGui:FindFirstChild("RobloxPromptGui")
+            if prompt then
+                local overlay = prompt:FindFirstChild("promptOverlay")
+                if overlay and overlay:FindFirstChild("ErrorPrompt") and overlay.ErrorPrompt.Visible then
+                    local errText = string.lower(overlay.ErrorPrompt.MessageArea.ErrorFrame.ErrorMessage.Text)
+                    if string.find(errText, "273") or string.find(errText, "277") or string.find(errText, "268") or string.find(errText, "279") or string.find(errText, "288") or string.find(errText, "disconnect") then
+                        isGameDead = true 
+                    end
+                end
+            end
+        end)
+    end
+end)()
+
+pcall(function()
+    game:GetService("GuiService").ErrorMessageChanged:Connect(function(errMsg)
+        if not errMsg or errMsg == "" then return end
+        local eStr = string.lower(errMsg)
+        if string.find(eStr, "273") or string.find(eStr, "277") or string.find(eStr, "268") or string.find(eStr, "279") or string.find(eStr, "288") or string.find(eStr, "disconnect") then isGameDead = true end
+    end)
+end)
+"""
+
+def load_config():
+    global CONFIG
+    if os.path.exists(CONFIG_FILE):
         try:
-            if not os.path.exists(workspace_path):
-                print(f"[*] Đang chờ Script Lua tạo file {workspace_path.split('/')[-1]}...", end="\r")
-                time.sleep(5)
-                continue
+            with open(CONFIG_FILE, "r") as f:
+                CONFIG.update(json.load(f))
+        except: pass
 
-            with open(workspace_path, "r") as f:
-                data = json.load(f)
-                last_time = data.get("time", 0)
+def save_config():
+    try:
+        with open(CONFIG_FILE, "w") as f:
+            json.dump(CONFIG, f)
+    except: pass
 
-            current_time = int(time.time())
-            diff = current_time - last_time
-
-            print(f"[*] Nhịp tim: Cập nhật {diff}s trước | App: {package_name}   ", end="\r")
-
-            if diff > TIMEOUT_SECONDS:
-                kill_and_start_roblox(package_name, workspace_path, place_id)
-
-        except json.JSONDecodeError:
-            pass
-        except Exception as e:
-            print(f"\n[!] Lỗi: {e}")
-
+def install_lua():
+    autoexec_dir = os.path.join(CONFIG["base_path"], "autoexec")
+    if not os.path.exists(autoexec_dir):
+        print(f"\n❌ Lỗi: Không tìm thấy thư mục {autoexec_dir}")
+        print("Vui lòng vào mục [S] để chỉnh lại thư mục Executor!")
         time.sleep(3)
+        return
+    
+    file_path = os.path.join(autoexec_dir, "HuDy_MultiHeartbeat.lua")
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(LUA_SCRIPT)
+        print(f"\n✅ ĐÃ CÀI ĐẶT THÀNH CÔNG SCRIPT VÀO AUTOEXEC!")
+        print("Tất cả các bản Clone chung thư mục này giờ sẽ tự động báo cáo nhịp tim.")
+    except Exception as e:
+        print(f"\n❌ Lỗi cài đặt: {e}")
+    time.sleep(3)
 
-def main():
-    while True:
-        clear_screen()
-        print("=========================================")
-        print(" 🤖 HUDY HUB - MENU MULTI-ACCOUNT (CLONE ANYA)")
-        print("=========================================")
-        print("Chọn Bản Roblox bạn muốn bảo vệ cho Tab này:")
-        print("[1] Clone 1 (cakm.lxb.uhah) -> Đọc file: rj_1.json")
-        print("[2] Clone 2 (aiu.eyz.stto)  -> Đọc file: rj_2.json")
-        print("[3] Clone 3 (ho.xag.rwid)   -> Đọc file: rj_3.json")
-        print("[4] Tự nhập thông tin THỦ CÔNG (Dành cho bản Clone lạ)")
-        print("[5] 🔎 TÌM TÊN GÓI (PACKAGE NAME) THẬT SỰ TRÊN MÁY")
-        print("=========================================")
-        
-        choice = input("👉 Nhập số (1-5): ")
-        
-        if choice == "5":
-            find_roblox_packages()
-            continue
-        elif choice == "1":
-            pkg = "cakm.lxb.uhah"
-            ws = BASE_WORKSPACE + "rj_1.json"
-        elif choice == "2":
-            pkg = "aiu.eyz.stto"
-            ws = BASE_WORKSPACE + "rj_2.json"
-        elif choice == "3":
-            pkg = "ho.xag.rwid"
-            ws = BASE_WORKSPACE + "rj_3.json"
-        elif choice == "4":
-            print("\n-- HƯỚNG DẪN: Dùng Menu [5] để tìm Tên gói, sau đó copy dán vào đây --")
-            pkg = input("Nhập Package Name thật (VD: com.vng.robloxx): ").strip()
-            filename = input("Nhập tên file json (VD: rj_1.json): ").strip()
-            ws = BASE_WORKSPACE + filename
-        else:
-            print("❌ Lựa chọn không hợp lệ!")
-            time.sleep(2)
-            continue
-
-        print("\n=========================================")
-        print("Bạn có muốn tự động Join thẳng vào game khi Rejoin không?")
-        print("[1] Có, Join thẳng vào King Legacy")
-        print("[2] Không, chỉ mở ra màn hình chờ của Roblox")
-        print("=========================================")
-        
-        join_choice = input("👉 Nhập số (1-2): ")
-        place_id = KING_LEGACY_PLACE_ID if join_choice == "1" else None
+def monitor_loop(acc):
+    name = acc['name']
+    pkg = acc['pkg']
+    ws_dir = os.path.join(CONFIG["base_path"], "workspace")
+    ws_file = os.path.join(ws_dir, f"rj_{name}.json")
+    
+    while WATCHING:
+        try:
+            if not os.path.exists(ws_file):
+                status_dict[name] = f"⚪ Chờ file rj_{name}.json..."
+            else:
+                with open(ws_file, "r") as f:
+                    data = json.load(f)
+                diff = int(time.time()) - data.get('time', 0)
+                
+                if diff > 60:
+                    status_dict[name] = f"🔴 VĂNG {diff}s! Đang Rejoin..."
+                    
+                    # Kill 2 lớp
+                    os.system(f"su -c 'am force-stop {pkg}'")
+                    os.system(f"su -c 'killall -9 {pkg} > /dev/null 2>&1'")
+                    time.sleep(2)
+                    
+                    # Ép Join Game
+                    pid = CONFIG.get("place_id", "4520749081")
+                    cmd = f"su -c 'am start -p {pkg} -a android.intent.action.VIEW -d \"roblox://experiences/start?placeId={pid}\"'"
+                    os.system(cmd)
+                    
+                    # Reset nhịp tim
+                    with open(ws_file, "w") as f:
+                        json.dump({"time": int(time.time())}, f)
+                        
+                    status_dict[name] = "🟡 Đang chờ game load (45s)..."
+                    time.sleep(45)
+                else:
+                    status_dict[name] = f"🟢 ĐANG CHẠY ({diff}s trước)"
+        except json.JSONDecodeError:
+            pass # Đang ghi file
+        except Exception as e:
+            status_dict[name] = f"❌ Lỗi: {str(e)[:20]}"
             
-        watch_heartbeat(pkg, ws, place_id)
-        break
+        time.sleep(2)
+
+def start_watchdog():
+    global WATCHING
+    if len(CONFIG['accounts']) == 0:
+        print("\n❌ Bạn chưa thêm Account nào! Bấm [A] để thêm trước.")
+        time.sleep(2)
+        return
+        
+    WATCHING = True
+    status_dict.clear()
+    threads = []
+    
+    # Bật đa luồng
+    for acc in CONFIG['accounts']:
+        t = threading.Thread(target=monitor_loop, args=(acc,))
+        t.daemon = True
+        t.start()
+        threads.append(t)
+        
+    try:
+        while WATCHING:
+            os.system("clear")
+            print("======================================================================")
+            print(f" 🤖 HUDY HUB - MULTI-ACCOUNT DASHBOARD (ĐANG BẢO VỆ {len(CONFIG['accounts'])} ACC)")
+            print("======================================================================")
+            print(f" {'TÊN NHÂN VẬT':<15} | {'PACKAGE NAME (APP)':<20} | TRẠNG THÁI")
+            print("----------------------------------------------------------------------")
+            for acc in CONFIG['accounts']:
+                name = acc['name']
+                pkg = acc['pkg']
+                status = status_dict.get(name, "⚪ Đang khởi tạo...")
+                print(f" {name:<15} | {pkg:<20} | {status}")
+            print("======================================================================")
+            print(" [Bấm Ctrl + C để thoát Bảng Điều Khiển]")
+            time.sleep(2)
+    except KeyboardInterrupt:
+        WATCHING = False
+        print("\nĐang dừng hệ thống soi... Vui lòng đợi...")
+        time.sleep(2)
+
+def menu():
+    load_config()
+    while True:
+        os.system("clear")
+        print("=============================================================")
+        print(" 🤖 HUDY HUB - THIẾT LẬP MASTER WATCHDOG (AUTO REJOIN)")
+        print("=============================================================")
+        print(f" 📂 Thư mục Executor : {CONFIG['base_path']}")
+        print(f" 🎮 PlaceID Tự Join  : {CONFIG['place_id']}")
+        print(f" 👥 Số lượng Acc     : {len(CONFIG['accounts'])} Account đang thiết lập")
+        print("=============================================================")
+        for i, acc in enumerate(CONFIG['accounts']):
+            print(f" [{i+1}] {acc['name']} (App: {acc['pkg']})")
+        print("=============================================================")
+        print(" [A] Thêm Account cần treo")
+        print(" [X] Xóa Account")
+        print(" [S] Sửa đường dẫn Executor & PlaceID")
+        print(" [I] TỰ ĐỘNG BƠM LUA SCRIPT VÀO AUTOEXEC (DÙNG 1 LẦN LÀ ĐƯỢC)")
+        print(" [R] 🚀 MỞ MÀN HÌNH DASHBOARD & BẮT ĐẦU TREO")
+        print(" [Q] Thoát")
+        print("=============================================================")
+        
+        c = input("👉 Nhập lựa chọn: ").upper()
+        if c == 'A':
+            print("\n-- LƯU Ý: Tên nhân vật (Name in game) phải gõ chính xác in hoa, in thường --")
+            name = input("Nhập Tên Nhân Vật: ").strip()
+            pkg = input("Nhập Package Name (VD: com.vng.roblox, aiu.eyz.stto): ").strip()
+            if name and pkg:
+                CONFIG['accounts'].append({"name": name, "pkg": pkg})
+                save_config()
+        elif c == 'X':
+            try:
+                idx = int(input("\nNhập số thứ tự Acc muốn xóa: ")) - 1
+                CONFIG['accounts'].pop(idx)
+                save_config()
+            except: pass
+        elif c == 'S':
+            path = input(f"\nNhập đường dẫn gốc Executor (Bỏ trống để giữ {CONFIG['base_path']}): ").strip()
+            if path: CONFIG['base_path'] = path
+            pid = input(f"Nhập PlaceID tự Join (Bỏ trống để giữ {CONFIG['place_id']}): ").strip()
+            if pid: CONFIG['place_id'] = pid
+            save_config()
+        elif c == 'I':
+            install_lua()
+        elif c == 'R':
+            start_watchdog()
+        elif c == 'Q':
+            break
 
 if __name__ == "__main__":
-    main()
+    menu()
