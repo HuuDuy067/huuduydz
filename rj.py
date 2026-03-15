@@ -22,16 +22,18 @@ def find_roblox_packages():
     print("🔍 ĐANG QUÉT CÁC BẢN ROBLOX TRÊN MÁY...")
     print("=========================================")
     try:
-        # Lọc tất cả package có chữ roblox
-        out = subprocess.check_output("su -c 'pm list packages | grep -i roblox'", shell=True).decode('utf-8')
-        packages = out.strip().split('\n')
+        # Sử dụng subprocess.run thay vì check_output để không bị văng lỗi khi grep rỗng (exit status 1)
+        result1 = subprocess.run("su -c 'pm list packages | grep -i roblox'", shell=True, capture_output=True, text=True)
+        packages = result1.stdout.strip().split('\n') if result1.stdout else []
+        packages = [p for p in packages if p] # Xóa phần tử rỗng
         
-        if not packages or packages == ['']:
+        if not packages:
             print("⚠️ Không tìm thấy tên có chữ 'roblox', đang tìm chữ 'delta' hoặc 'vng'...")
-            out = subprocess.check_output("su -c 'pm list packages | grep -iE \"delta|vng\"'", shell=True).decode('utf-8')
-            packages = out.strip().split('\n')
+            result2 = subprocess.run("su -c 'pm list packages | grep -iE \"delta|vng\"'", shell=True, capture_output=True, text=True)
+            packages = result2.stdout.strip().split('\n') if result2.stdout else []
+            packages = [p for p in packages if p]
             
-        if not packages or packages == ['']:
+        if not packages:
             print("❌ Vẫn không tìm thấy! Bạn hãy tự vào Cài đặt -> Ứng dụng để xem tên gói.")
         else:
             print("✅ TÌM THẤY CÁC GÓI SAU ĐÂY (Hãy copy tên của bản Clone):")
@@ -39,7 +41,7 @@ def find_roblox_packages():
                 if pkg:
                     print(f"   👉 {pkg.replace('package:', '').strip()}")
     except Exception as e:
-        print(f"❌ Lỗi khi tìm kiếm: {e}")
+        print(f"❌ Lỗi khi hệ thống quét: {e}")
     
     print("=========================================")
     input("Bấm phím Enter để quay lại Menu chính...")
