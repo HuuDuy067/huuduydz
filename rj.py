@@ -21,7 +21,8 @@ WATCHING = False
 status_dict = {}
 
 # ĐÂY LÀ SCRIPT LUA TỰ ĐỘNG NHẬN DIỆN ACC SẼ ĐƯỢC BƠM VÀO AUTOEXEC
-LUA_SCRIPT = """if getgenv().HuDyHeartbeat_Running then return end
+LUA_SCRIPT = """task.wait(3) -- Chờ game load ổn định trước khi chạy
+if getgenv().HuDyHeartbeat_Running then return end
 getgenv().HuDyHeartbeat_Running = true
 
 local Players = game:GetService("Players")
@@ -37,7 +38,11 @@ print("💓 [HuDy Hub] Đã kích hoạt hệ thống Nhịp Tim Đa Tab: " .. H
 coroutine.wrap(function()
     while task.wait(1) do 
         if isGameDead then break end
-        pcall(function() if writefile then writefile(HEARTBEAT_FILE, '{"time":' .. math.floor(os.time()) .. '}') end end)
+        pcall(function() 
+            if writefile then 
+                writefile(HEARTBEAT_FILE, '{"time":' .. math.floor(os.time()) .. '}') 
+            end 
+        end)
     end
 end)()
 
@@ -49,6 +54,7 @@ coroutine.wrap(function()
                 local overlay = prompt:FindFirstChild("promptOverlay")
                 if overlay and overlay:FindFirstChild("ErrorPrompt") and overlay.ErrorPrompt.Visible then
                     local errText = string.lower(overlay.ErrorPrompt.MessageArea.ErrorFrame.ErrorMessage.Text)
+                    -- Bắt các lỗi văng game nghiêm trọng
                     if string.find(errText, "273") or string.find(errText, "277") or string.find(errText, "268") or string.find(errText, "279") or string.find(errText, "288") or string.find(errText, "disconnect") then
                         isGameDead = true 
                     end
@@ -82,27 +88,43 @@ def save_config():
     except: pass
 
 def install_lua():
-    autoexec_dir = os.path.join(CONFIG["base_path"], "autoexec")
-    if not os.path.exists(autoexec_dir):
-        print(f"\n❌ Lỗi: Không tìm thấy thư mục {autoexec_dir}")
-        print("Vui lòng vào mục [S] để chỉnh lại thư mục Executor!")
-        time.sleep(3)
-        return
+    # Cập nhật thư mục chính xác của Delta là "Autoexecute"
+    autoexec_dir1 = os.path.join(CONFIG["base_path"], "Autoexecute")
+    autoexec_dir2 = os.path.join(CONFIG["base_path"], "autoexec") # Đường dẫn dự phòng cho Codex/Fluxus
     
-    file_path = os.path.join(autoexec_dir, "HuDy_MultiHeartbeat.lua")
+    os.makedirs(autoexec_dir1, exist_ok=True)
+    try: os.makedirs(autoexec_dir2, exist_ok=True)
+    except: pass
+
+    file_path1 = os.path.join(autoexec_dir1, "HuDy_MultiHeartbeat.lua")
+    file_path2 = os.path.join(autoexec_dir2, "HuDy_MultiHeartbeat.lua")
+    
     try:
-        with open(file_path, "w", encoding="utf-8") as f:
+        # Ghi file vào thư mục chính của Delta
+        with open(file_path1, "w", encoding="utf-8") as f:
             f.write(LUA_SCRIPT)
+        
+        # Ghi dự phòng thêm một bản (nếu máy có chạy app khác)
+        try:
+            with open(file_path2, "w", encoding="utf-8") as f:
+                f.write(LUA_SCRIPT)
+        except: pass
+        
         print(f"\n✅ ĐÃ CÀI ĐẶT THÀNH CÔNG SCRIPT VÀO AUTOEXEC!")
-        print("Tất cả các bản Clone chung thư mục này giờ sẽ tự động báo cáo nhịp tim.")
+        print(f"File được lưu chính xác tại: {file_path1}")
+        print("Bây giờ bạn có thể mở Game lên, Script nhịp tim sẽ tự chạy!")
     except Exception as e:
         print(f"\n❌ Lỗi cài đặt: {e}")
-    time.sleep(3)
+    time.sleep(4)
 
 def monitor_loop(acc):
     name = acc['name']
     pkg = acc['pkg']
     ws_dir = os.path.join(CONFIG["base_path"], "workspace")
+    
+    # Ép tạo thư mục workspace nếu chưa có
+    os.makedirs(ws_dir, exist_ok=True)
+    
     ws_file = os.path.join(ws_dir, f"rj_{name}.json")
     
     while WATCHING:
@@ -127,7 +149,7 @@ def monitor_loop(acc):
                     cmd = f"su -c 'am start -p {pkg} -a android.intent.action.VIEW -d \"roblox://experiences/start?placeId={pid}\"'"
                     os.system(cmd)
                     
-                    # Reset nhịp tim
+                    # Reset nhịp tim để không kill nhầm lúc đang load
                     with open(ws_file, "w") as f:
                         json.dump({"time": int(time.time())}, f)
                         
