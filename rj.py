@@ -175,9 +175,11 @@ def monitor_loop(acc):
                     time.sleep(10)
                     
                     # Bước 2: Bắn link ép Join chuẩn của Roblox (có experiences/start)
-                    status_dict[name] = "🟡 Đang ép Join Game (B2)..."
-                    cmd_join = f"su -c 'am start -a android.intent.action.VIEW -d \"roblox://experiences/start?placeId={pid}\" -p {pkg}'"
-                    os.system(cmd_join)
+                    pid = clean_path(CONFIG.get("place_id", "4520749081"))
+                    status_dict[name] = "🟡 Đang ép Join Game (Deep Link)..."
+                    
+                    intent_cmd = f"su -c 'am start -p {pkg} -a android.intent.action.VIEW -d \"roblox://experiences/start?placeId={pid}\"'"
+                    os.system(intent_cmd)
                     
                     # CẤP QUYỀN MIỄN TỬ (GRACE PERIOD): Cộng thêm 180s (3 phút) vào mốc thời gian.
                     with open(ws_file, "w") as f:
