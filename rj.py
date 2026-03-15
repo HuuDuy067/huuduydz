@@ -9,6 +9,7 @@ import re
 # HUDY HUB - BẢNG ĐIỀU KHIỂN TRUNG TÂM TREO NHIỀU ACC CÙNG LÚC
 # Chức năng: Đa luồng kiểm tra nhiều file rj_AccName.json
 # Tự động ném Script Lua vào thư mục Autoexec! (Bản Fix Ký Tự Ẩn)
+# Có hàng đợi Auto Boot chống nổ RAM khi mở nhiều app.
 # =========================================================================
 
 CONFIG_FILE = "watchdog_config.json"
@@ -20,6 +21,7 @@ CONFIG = {
 
 WATCHING = False
 status_dict = {}
+boot_lock = threading.Lock() # Khoá hàng đợi để mở app lần lượt, chống crash máy
 
 # ĐÂY LÀ SCRIPT LUA TỰ ĐỘNG NHẬN DIỆN ACC SẼ ĐƯỢC BƠM VÀO AUTOEXEC
 LUA_SCRIPT = """task.wait(3) -- Chờ game load ổn định trước khi chạy
@@ -141,15 +143,24 @@ def monitor_loop(acc):
     
     while WATCHING:
         try:
+            diff = 999
+            is_first_boot = False
+            
+            # Nếu không thấy file nhịp tim -> Kích hoạt Auto Start lần đầu
             if not os.path.exists(ws_file):
-                status_dict[name] = f"⚪ Chờ file rj_{name}.json..."
+                is_first_boot = True
             else:
                 with open(ws_file, "r") as f:
                     data = json.load(f)
                 diff = int(time.time()) - data.get('time', 0)
                 
-                if diff > 60:
-                    status_dict[name] = f"🔴 VĂNG {diff}s! Đang Rejoin..."
+            if diff > 60 or is_first_boot:
+                # Xếp hàng bằng boot_lock để các Acc khởi động cách nhau an toàn
+                with boot_lock:
+                    if is_first_boot:
+                        status_dict[name] = f"🚀 ĐANG MỞ APP LẦN ĐẦU..."
+                    else:
+                        status_dict[name] = f"🔴 VĂNG {diff}s! Đang Rejoin..."
                     
                     # Kill 2 lớp
                     os.system(f"su -c 'am force-stop {pkg}'")
@@ -165,10 +176,16 @@ def monitor_loop(acc):
                     with open(ws_file, "w") as f:
                         json.dump({"time": int(time.time())}, f)
                         
-                    status_dict[name] = "🟡 Đang chờ game load (45s)..."
-                    time.sleep(45)
-                else:
-                    status_dict[name] = f"🟢 ĐANG CHẠY ({diff}s trước)"
+                    status_dict[name] = "🟡 Đang chờ game load..."
+                    
+                    # Ngủ 10s trước khi thả khoá cho Acc tiếp theo được mở
+                    time.sleep(10)
+                
+                # Luồng hiện tại ngủ thêm 35s cho game load vào xong hẳn
+                time.sleep(35)
+            else:
+                status_dict[name] = f"🟢 ĐANG CHẠY ({diff}s trước)"
+                
         except json.JSONDecodeError:
             pass # Đang ghi file
         except Exception as e:
