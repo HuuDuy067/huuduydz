@@ -162,7 +162,7 @@ def monitor_loop(acc):
                     time.sleep(2)
                     
                     # ==================================================
-                    # FIX: COMBO MỞ APP 2 BƯỚC (CHỐNG LỖI KẸT Ở SẢNH)
+                    # FIX: COMBO MỞ APP SIÊU TỐC (FAST BOOT)
                     # ==================================================
                     pid = clean_path(CONFIG.get("place_id", "4520749081"))
                     
@@ -170,8 +170,8 @@ def monitor_loop(acc):
                     status_dict[name] = "🟡 Đang đánh thức App (B1)..."
                     os.system(f"su -c 'monkey -p {pkg} -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1'")
                     
-                    # Ngủ 8 giây để App load xong tài nguyên Home Screen
-                    time.sleep(8)
+                    # Ngủ 3 giây (Rút ngắn tối đa để tăng tốc)
+                    time.sleep(3)
                     
                     # Bước 2: Bắn link ép Join
                     status_dict[name] = "🟡 Đang ép Join Game (B2)..."
@@ -184,11 +184,11 @@ def monitor_loop(acc):
                         
                     status_dict[name] = "🟡 Đang chờ game load (Max 3 phút)..."
                     
-                    # Ngủ 10s trước khi thả khoá cho Acc tiếp theo được khởi động
-                    time.sleep(10)
+                    # Ngủ 3s trước khi thả khoá cho Acc tiếp theo được khởi động (Rút ngắn từ 10s)
+                    time.sleep(3)
                 
-                # Luồng hiện tại ngủ thêm 35s trước khi check vòng lặp mới
-                time.sleep(35)
+                # Luồng hiện tại ngủ thêm 10s trước khi check vòng lặp mới (Rút ngắn từ 35s)
+                time.sleep(10)
             else:
                 if diff < 0:
                     status_dict[name] = f"🟢 ĐANG NẠP DỮ LIỆU GAME (Chờ Lua Script...)"
