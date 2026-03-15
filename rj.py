@@ -87,31 +87,39 @@ def save_config():
             json.dump(CONFIG, f)
     except: pass
 
-def install_lua():
-    # Cập nhật thư mục chính xác của Delta là "Autoexecute"
-    autoexec_dir1 = os.path.join(CONFIG["base_path"], "Autoexecute")
-    autoexec_dir2 = os.path.join(CONFIG["base_path"], "autoexec") # Đường dẫn dự phòng cho Codex/Fluxus
+# =====================================================================
+# THUẬT TOÁN TÌM THƯ MỤC CHUẨN XÁC (KHÔNG TẠO RÁC)
+# =====================================================================
+def get_exact_folder(base_path, folder_names_to_try):
+    if not os.path.exists(base_path):
+        return os.path.join(base_path, folder_names_to_try[0])
+        
+    existing_dirs = os.listdir(base_path)
+    # Lấy danh sách thư mục hiện có (loại bỏ ký tự lạ, chuyển về chữ thường để so sánh)
+    clean_dirs = {d.lower().strip(): d for d in existing_dirs}
     
-    os.makedirs(autoexec_dir1, exist_ok=True)
-    try: os.makedirs(autoexec_dir2, exist_ok=True)
-    except: pass
+    for target in folder_names_to_try:
+        clean_target = target.lower().strip()
+        if clean_target in clean_dirs:
+            # Trả về tên thư mục GỐC CỦA HỆ THỐNG đang xài (Đúng 100% in hoa/thường)
+            return os.path.join(base_path, clean_dirs[clean_target])
+            
+    # Nếu không có thì mới tạo mới bằng cái tên chuẩn đầu tiên
+    return os.path.join(base_path, folder_names_to_try[0])
 
-    file_path1 = os.path.join(autoexec_dir1, "HuDy_MultiHeartbeat.lua")
-    file_path2 = os.path.join(autoexec_dir2, "HuDy_MultiHeartbeat.lua")
+def install_lua():
+    # Tìm chính xác thư mục Autoexecute đang có sẵn
+    autoexec_dir = get_exact_folder(CONFIG["base_path"], ["autoexecute", "autoexec"])
+    os.makedirs(autoexec_dir, exist_ok=True)
+
+    file_path = os.path.join(autoexec_dir, "HuDy_MultiHeartbeat.lua")
     
     try:
-        # Ghi file vào thư mục chính của Delta
-        with open(file_path1, "w", encoding="utf-8") as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             f.write(LUA_SCRIPT)
         
-        # Ghi dự phòng thêm một bản (nếu máy có chạy app khác)
-        try:
-            with open(file_path2, "w", encoding="utf-8") as f:
-                f.write(LUA_SCRIPT)
-        except: pass
-        
         print(f"\n✅ ĐÃ CÀI ĐẶT THÀNH CÔNG SCRIPT VÀO AUTOEXEC!")
-        print(f"File được lưu chính xác tại: {file_path1}")
+        print(f"File được lưu chính xác tại: {file_path}")
         print("Bây giờ bạn có thể mở Game lên, Script nhịp tim sẽ tự chạy!")
     except Exception as e:
         print(f"\n❌ Lỗi cài đặt: {e}")
@@ -120,9 +128,9 @@ def install_lua():
 def monitor_loop(acc):
     name = acc['name']
     pkg = acc['pkg']
-    ws_dir = os.path.join(CONFIG["base_path"], "workspace")
     
-    # Ép tạo thư mục workspace nếu chưa có
+    # Tìm chính xác thư mục Workspace đang có sẵn
+    ws_dir = get_exact_folder(CONFIG["base_path"], ["workspace"])
     os.makedirs(ws_dir, exist_ok=True)
     
     ws_file = os.path.join(ws_dir, f"rj_{name}.json")
